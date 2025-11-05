@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-import os # AppData 경로를 찾기 위해 import
-from constants import PRESET_COUNT # 8개로 고정된 값을 가져옴
+import os
+from constants import PRESET_COUNT
 
 class PresetManager:
     """
@@ -18,12 +18,17 @@ class PresetManager:
 
     def load_presets(self):
         """JSON 파일에서 프리셋을 로드합니다. 파일이 없으면 N개의 빈 슬롯을 생성합니다."""
-        # [ ★ 1. 수정 ★ ] strength 기본값 추가
-        empty_slot = {"color1": None, "color2": None, "brightness": None, "strength": 1.0}
+        # [ ★ 1. 수정 ★ ] invert 기본값 추가
+        empty_slot = {
+            "color1": None, 
+            "color2": None, 
+            "brightness": None, 
+            "strength": 1.0, 
+            "invert": False
+        }
         
         if not self.preset_path.exists():
             print(f"presets.json 파일이 없어 새로 생성: {self.preset_path}")
-            # PRESET_COUNT (8개) 만큼 빈 슬롯 생성
             default_presets = [empty_slot.copy() for _ in range(PRESET_COUNT)]
             self.presets = default_presets
             self._save_to_file()
@@ -33,15 +38,15 @@ class PresetManager:
             with open(self.preset_path, 'r', encoding='utf-8') as f:
                 presets = json.load(f)
                 
-                # (하위 호환성 로직) - PRESET_COUNT(8)에 맞춰 자동 조절
                 if len(presets) < PRESET_COUNT:
                     presets.extend([empty_slot.copy() for _ in range(PRESET_COUNT - len(presets))])
                 elif len(presets) > PRESET_COUNT:
                     presets = presets[:PRESET_COUNT]
                 
-                # [ ★ 2. 추가 ★ ] 기존 프리셋에 strength 키가 없으면 1.0으로 자동 추가
+                # [ ★ 2. 추가 ★ ] 기존 프리셋에 invert 키가 없으면 False로 자동 추가
                 for preset in presets:
                     preset.setdefault("strength", 1.0)
+                    preset.setdefault("invert", False) 
                 
                 return presets
         except json.JSONDecodeError:
@@ -62,21 +67,23 @@ class PresetManager:
     def get_preset(self, slot_index):
         """특정 슬롯의 프리셋 데이터를 반환합니다."""
         if 0 <= slot_index < len(self.presets):
-            # [ ★ 3. 추가 ★ ] strength가 없는 구버전 json을 대비
+            # [ ★ 3. 추가 ★ ] 하위 호환성
             self.presets[slot_index].setdefault("strength", 1.0)
+            self.presets[slot_index].setdefault("invert", False)
             return self.presets[slot_index]
         return None
 
     def get_all_presets(self):
         """모든 프리셋 데이터를 리스트로 반환합니다."""
-        # [ ★ 4. 추가 ★ ] strength가 없는 구버전 json을 대비
+        # [ ★ 4. 추가 ★ ] 하위 호환성
         for preset in self.presets:
             preset.setdefault("strength", 1.0)
+            preset.setdefault("invert", False)
         return self.presets
 
-    def save_preset(self, slot_index, color1, color2, brightness, strength):
+    def save_preset(self, slot_index, color1, color2, brightness, strength, invert):
         """특정 슬롯에 새 프리셋 데이터를 저장하고 파일에 반영합니다."""
-        # [ ★ 5. 수정 ★ ] strength 인자 추가
+        # [ ★ 5. 수정 ★ ] invert 인자 추가
         if not (0 <= slot_index < len(self.presets)):
             print(f"잘못된 슬롯 인덱스: {slot_index}")
             return
@@ -85,7 +92,8 @@ class PresetManager:
             "color1": color1,
             "color2": color2,
             "brightness": brightness,
-            "strength": strength  # strength 저장
+            "strength": strength,
+            "invert": invert # invert 저장
         }
         
         self.presets[slot_index] = new_data

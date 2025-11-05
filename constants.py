@@ -42,4 +42,4 @@ def get_calculated_width():
 CALCULATED_WIDTH = get_calculated_width()
 
 # 세로 크기 (고정)
-APP_HEIGHT = 580
+APP_HEIGHT = 640

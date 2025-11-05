@@ -1,8 +1,8 @@
 from pathlib import Path
 import os
 from tkinter import messagebox
+import copy 
 
-# [ ★ 1. 추가 ★ ] 항등 행렬 (원본) 정의
 IDENTITY_MATRIX = [
     [ 1.0, 0.0, 0.0, 0.0, 0.0 ],
     [ 0.0, 1.0, 0.0, 0.0, 0.0 ],
@@ -11,10 +11,19 @@ IDENTITY_MATRIX = [
     [ 0.0, 0.0, 0.0, 0.0, 1.0 ]
 ]
 
+# [ ★ 1. 추가 ★ ] 원본 반전(네거티브) 행렬 (Out = 1 - In)
+IDENTITY_INVERTED_MATRIX = [
+    [ -1.0,  0.0,  0.0, 0.0, 0.0 ], # R' = -1*R
+    [  0.0, -1.0,  0.0, 0.0, 0.0 ], # G' = -1*G
+    [  0.0,  0.0, -1.0, 0.0, 0.0 ], # B' = -1*B
+    [  0.0,  0.0,  0.0, 1.0, 0.0 ], # A' = 1*A
+    [  1.0,  1.0,  1.0, 0.0, 1.0 ]  # R', G', B'에 각각 +1.0
+]
+
 
 class MatrixCalculator:
     """
-    두 개의 Hex 색상 코드, 밝기, 강도를 받아 5x5 행렬을 계산합니다.
+    두 개의 Hex 색상 코드, 밝기, 강도, 반전 여부를 받아 5x5 행렬을 계산합니다.
     """
 
     def _hex_to_rgb(self, hex_code):
@@ -24,7 +33,6 @@ class MatrixCalculator:
         b = int(hex_val[4:6], 16) / 255.0
         return r, g, b
 
-    # [ ★ 2. 추가 ★ ] 행렬 2개를 섞는 헬퍼 함수 (NumPy 불필요)
     def _blend_matrices(self, matrix_a, matrix_b, strength_a):
         """ matrix_a * strength_a + matrix_b * (1.0 - strength_a) """
         final_matrix = [[0.0] * 5 for _ in range(5)]
@@ -35,18 +43,22 @@ class MatrixCalculator:
                 final_matrix[i][j] = (matrix_a[i][j] * strength_a) + (matrix_b[i][j] * strength_b)
         return final_matrix
 
-    def calculate_matrix(self, hex_color1, hex_color2, brightness, strength):
+    def _negate_3x3(self, matrix):
+        """ 5x5 행렬의 3x3 (색상) 부분의 부호만 뒤집습니다. """
+        inv_matrix = copy.deepcopy(matrix)
+        for i in range(3):
+            for j in range(3):
+                inv_matrix[i][j] = -inv_matrix[i][j]
+        return inv_matrix
+
+    def calculate_matrix(self, hex_color1, hex_color2, brightness, strength, invert_state):
         """
-        [ ★ 3. 수정 ★ ] strength 인자 추가
-        알고리즘:
-        1. 듀오톤(Grayscale Remap) 행렬 'Matrix_A'를 계산합니다.
-        2. 원본(Identity) 행렬 'Matrix_B'를 가져옵니다.
-        3. 'strength' 값에 따라 두 행렬을 선형 보간(혼합)합니다.
+        [ ★ 2. 수정 ★ ] "시도 2" (Attempt 2) 로직 적용
         """
         
         try:
-            dr, dg, db = self._hex_to_rgb(hex_color1) # Dark (어두운 색)
-            br, bg, bb = self._hex_to_rgb(hex_color2) # Bright (밝은 색)
+            dr, dg, db = self._hex_to_rgb(hex_color1) # Dark
+            br, bg, bb = self._hex_to_rgb(hex_color2) # Bright
         except Exception as e:
             print(f"Hex 코드 변환 오류: {e}")
             messagebox.showerror("계산 오류", f"잘못된 Hex 코드입니다: {e}")
@@ -58,39 +70,54 @@ class MatrixCalculator:
         
         b = brightness
 
-        # 1. 듀오톤 행렬 (Matrix_A) 계산
+        # --- 1. 듀오톤 행렬 (Matrix_A) 계산 ---
+        # 1a. 3x3 부분 계산
         duotone_matrix = [[0.0] * 5 for _ in range(5)]
         
-        # Column 0 (Red Output)
-        duotone_matrix[0][0] = (br - dr) * LUMA_R * b # R -> R
-        duotone_matrix[1][0] = (br - dr) * LUMA_G * b # G -> R
-        duotone_matrix[2][0] = (br - dr) * LUMA_B * b # B -> R
-        duotone_matrix[4][0] = dr * b                # Const -> R
-        # Column 1 (Green Output)
-        duotone_matrix[0][1] = (bg - dg) * LUMA_R * b # R -> G
-        duotone_matrix[1][1] = (bg - dg) * LUMA_G * b # G -> G
-        duotone_matrix[2][1] = (bg - dg) * LUMA_B * b # B -> G
-        duotone_matrix[4][1] = dg * b                # Const -> G
-        # Column 2 (Blue Output)
-        duotone_matrix[0][2] = (bb - db) * LUMA_R * b # R -> B
-        duotone_matrix[1][2] = (bb - db) * LUMA_G * b # G -> B
-        duotone_matrix[2][2] = (bb - db) * LUMA_B * b # B -> B
-        duotone_matrix[4][2] = db * b                # Const -> B
-        # Column 3 & 4 (Alpha, Const)
-        duotone_matrix[3][3] = 1.0
-        duotone_matrix[4][4] = 1.0
+        duotone_matrix[0][0] = (br - dr) * LUMA_R * b
+        duotone_matrix[1][0] = (br - dr) * LUMA_G * b
+        duotone_matrix[2][0] = (br - dr) * LUMA_B * b
         
-        # 2. 원본 행렬 (Matrix_B)
-        identity_matrix = IDENTITY_MATRIX
-
-        # 3. 두 행렬을 'strength' 값으로 혼합
+        duotone_matrix[0][1] = (bg - dg) * LUMA_R * b
+        duotone_matrix[1][1] = (bg - dg) * LUMA_G * b
+        duotone_matrix[2][1] = (bg - dg) * LUMA_B * b
+        
+        duotone_matrix[0][2] = (bb - db) * LUMA_R * b
+        duotone_matrix[1][2] = (bb - db) * LUMA_G * b
+        duotone_matrix[2][2] = (bb - db) * LUMA_B * b
+        
+        # 1b. 'invert_state'에 따라 3x3 부호 및 5행 상수항을 결정
+        if invert_state:
+            active_filter_matrix = self._negate_3x3(duotone_matrix)
+            active_filter_matrix[4][0] = br * b
+            active_filter_matrix[4][1] = bg * b
+            active_filter_matrix[4][2] = bb * b
+        else:
+            active_filter_matrix = duotone_matrix
+            active_filter_matrix[4][0] = dr * b
+            active_filter_matrix[4][1] = dg * b
+            active_filter_matrix[4][2] = db * b
+        
+        # 1c. 나머지 (Alpha, Const) 설정
+        active_filter_matrix[3][3] = 1.0
+        active_filter_matrix[4][4] = 1.0
+        
+        # --- 2. 'invert_state'에 따라 혼합할 "원본" (Matrix_B)을 결정 ---
+        if invert_state:
+            # "시도 2": 원본_반전 행렬 사용
+            identity_matrix_to_blend = IDENTITY_INVERTED_MATRIX
+        else:
+            # "시도 1": 원본_긍정 행렬 사용
+            identity_matrix_to_blend = IDENTITY_MATRIX
+        
+        # --- 3. 두 행렬을 'strength' 값으로 혼합 ---
         final_matrix = self._blend_matrices(
-            matrix_a=duotone_matrix, 
-            matrix_b=identity_matrix, 
+            matrix_a=active_filter_matrix, 
+            matrix_b=identity_matrix_to_blend, 
             strength_a=strength
         )
         
-        print(f"계산 완료 (Blend): {hex_color1}, {hex_color2}, B:{brightness}, S:{strength}")
+        print(f"계산 완료 (Blend): B:{brightness}, S:{strength}, I:{invert_state}")
         
         return final_matrix
 
