@@ -84,7 +84,15 @@ class App(tk.Tk):
         self.hotkey_entry.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="we")
         self.hotkey_entry.insert(0, "ctrl+alt+v")
         ttk.Label(self.main_frame, text="밝기 (0.0 ~ 1.0):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.brightness_spinbox = ttk.Spinbox(self.main_frame, from_=0.0, to=1.0, increment=0.1, textvariable=self.brightness_var, width=5)
+        self.brightness_spinbox = ttk.Spinbox(
+            self.main_frame, 
+            from_=0.0, 
+            to=1.0, 
+            increment=0.05,        # [ ★ 1. 수정 ★ ] 0.1 -> 0.05
+            format="%.2f",           # [ ★ 2. 추가 ★ ] 소수점 2자리까지 허용
+            textvariable=self.brightness_var, 
+            width=5
+        )
         self.brightness_spinbox.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
 
