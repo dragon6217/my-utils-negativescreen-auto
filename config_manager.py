@@ -3,7 +3,7 @@ from pathlib import Path
 
 class ConfigManager:
     """
-    config.json 파일을 관리하여 앱 설정을 (경로 등) 저장합니다.
+    config.json 파일을 관리하여 앱 설정을 (폴더 경로) 저장합니다.
     """
     def __init__(self, config_file="config.json"):
         self.config_path = Path(config_file)
@@ -11,9 +11,9 @@ class ConfigManager:
 
     def load_config(self):
         """JSON 파일에서 설정을 로드합니다. 파일이 없으면 기본값을 생성합니다."""
+        # [ ★ 1. 수정 ★ ] 단일 폴더 경로만 저장
         default_config = {
-            "exe_path": "",
-            "conf_path": ""
+            "app_folder_path": ""
         }
         
         if not self.config_path.exists():
@@ -26,8 +26,7 @@ class ConfigManager:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 # 누락된 키가 있으면 기본값으로 채움
-                config.setdefault("exe_path", "")
-                config.setdefault("conf_path", "")
+                config.setdefault("app_folder_path", "")
                 return config
         except json.JSONDecodeError:
             print("config.json 파일이 손상되어 기본값으로 덮어씁니다.")
@@ -43,13 +42,14 @@ class ConfigManager:
         except Exception as e:
             print(f"config.json 저장 중 오류 발생: {e}")
 
-    def get_paths(self):
-        """저장된 경로 딕셔너리를 반환합니다."""
-        return self.config
+    def get_folder_path(self):
+        """저장된 폴더 경로 문자열을 반환합니다."""
+        # [ ★ 2. 수정 ★ ]
+        return self.config.get("app_folder_path", "")
 
-    def save_paths(self, exe_path, conf_path):
-        """새 경로를 저장하고 파일에 반영합니다."""
-        self.config["exe_path"] = exe_path
-        self.config["conf_path"] = conf_path
+    def save_folder_path(self, folder_path):
+        """새 폴더 경로를 저장하고 파일에 반영합니다."""
+        # [ ★ 3. 수정 ★ ]
+        self.config["app_folder_path"] = folder_path
         self._save_to_file()
-        print("경로가 config.json에 저장되었습니다.")
+        print("폴더 경로가 config.json에 저장되었습니다.")

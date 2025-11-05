@@ -1,11 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, colorchooser, messagebox
-from tkinter import filedialog # [ ★ 1. 추가 ★ ] 파일 탐색기용
+from tkinter import filedialog
 from pathlib import Path
+import os               # [ ★ 1. 추가 ★ ] (os.startfile 용)
+import subprocess       # [ ★ 2. 추가 ★ ] (taskkill 용)
+import time             # [ ★ 3. 추가 ★ ] (time.sleep 용)
 
 from models import MatrixCalculator, ConfigFileHandler
 from preset_manager import PresetManager
-from config_manager import ConfigManager # [ ★ 2. 추가 ★ ]
+from config_manager import ConfigManager
+from constants import PRESET_COUNT, CALCULATED_WIDTH, APP_HEIGHT
 
 # --- 2. View & Controller (GUI 및 이벤트 처리) ---
 
@@ -13,30 +17,35 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("NegativeScreen 도우미")
-        # [ ★ 3. 수정 ★ ] 창 세로 크기 늘리기
-        self.geometry("370x580") 
+        
+        # [ ★ 4. 수정 ★ ] 세로 크기를 재조정 (경로 UI가 1줄로 줄었으나 재시작 버튼 추가)
+        # (기존 APP_HEIGHT는 580 이었음)
+        self.geometry(f"{CALCULATED_WIDTH}x530") 
 
         # --- Model 인스턴스 생성 ---
         self.calculator = MatrixCalculator()
         
-        # [ ★ 4. 수정 ★ ] ConfigManager를 먼저 실행
+        # [ ★ 5. 수정 ★ ] 단일 폴더 경로를 읽어옴
         self.config_manager = ConfigManager()
-        config_data = self.config_manager.get_paths()
+        folder_path = self.config_manager.get_folder_path()
         
         self.preset_manager = PresetManager()
         
-        # [ ★ 5. 수정 ★ ] ConfigFileHandler에 저장된 경로를 주입
-        loaded_conf_path = config_data.get("conf_path", "")
-        self.handler = ConfigFileHandler(conf_path_str=loaded_conf_path)
+        # [ ★ 6. 수정 ★ ] 읽어온 폴더 경로로 .conf 파일 경로를 *조합*
+        conf_path_str = ""
+        if folder_path and Path(folder_path).exists():
+            # str()로 감싸서 문자열로 만듦
+            conf_path_str = str(Path(folder_path) / "negativescreen.conf")
+            
+        self.handler = ConfigFileHandler(conf_path_str=conf_path_str)
 
         # --- UI에서 사용할 변수 ---
         self.color1_hex_var = tk.StringVar(value="#0e4700")
         self.color2_hex_var = tk.StringVar(value="#90f730")
         self.brightness_var = tk.DoubleVar(value=0.8)
 
-        # [ ★ 6. 추가 ★ ] 경로 UI용 변수
-        self.exe_path_var = tk.StringVar(value=config_data.get("exe_path", ""))
-        self.conf_path_var = tk.StringVar(value=loaded_conf_path)
+        # [ ★ 7. 수정 ★ ] 경로 UI용 변수 (단일 폴더)
+        self.app_folder_path_var = tk.StringVar(value=folder_path)
 
         self.preset_ui_elements = []
 
@@ -56,6 +65,8 @@ class App(tk.Tk):
 
         # --- (Grid row 0~3) 메인 색상/설정 (변경 없음) ---
         PREVIEW_COLUMN_WIDTH = 5
+        # ( ... 색상1, 색상2, 단축키, 밝기 UI 코드 ... )
+        # ( ... (생략) ... )
         ttk.Label(self.main_frame, text="색상 1:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.color1_preview = tk.Label(self.main_frame, text="  ", bg="#0e4700", width=PREVIEW_COLUMN_WIDTH, relief="sunken")
         self.color1_preview.grid(row=0, column=1, padx=5, pady=5)
@@ -73,20 +84,18 @@ class App(tk.Tk):
         self.hotkey_entry.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="we")
         self.hotkey_entry.insert(0, "ctrl+alt+v")
         ttk.Label(self.main_frame, text="밝기 (0.0 ~ 1.0):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.brightness_spinbox = ttk.Spinbox(
-            self.main_frame, from_=0.0, to=1.0, increment=0.1, 
-            textvariable=self.brightness_var, width=5
-        )
+        self.brightness_spinbox = ttk.Spinbox(self.main_frame, from_=0.0, to=1.0, increment=0.1, textvariable=self.brightness_var, width=5)
         self.brightness_spinbox.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
-        # --- (Grid row 4) 프리셋 5x5 그리드 (변경 없음) ---
+
+        # --- (Grid row 4) 프리셋 그리드 (변경 없음) ---
         preset_frame = ttk.LabelFrame(self.main_frame, text="프리셋 저장 (In) / 불러오기 (Out)", padding="10", labelanchor="n")
         preset_frame.grid(row=4, column=0, columnspan=4, padx=5, pady=10, sticky="we")
         preset_grid_frame = ttk.Frame(preset_frame)
         preset_grid_frame.pack()
         all_presets = self.preset_manager.get_all_presets()
         PRESET_COLUMN_WIDTH = 4
-        for i in range(5):
+        for i in range(PRESET_COUNT):
             data = all_presets[i]
             c1 = data.get('color1') or "SystemButtonFace"
             c2 = data.get('color2') or "SystemButtonFace"
@@ -107,27 +116,23 @@ class App(tk.Tk):
         self.apply_button = ttk.Button(self.main_frame, text="설정 파일에 적용", command=self.apply_changes)
         self.apply_button.grid(row=5, column=0, columnspan=4, padx=5, pady=10, sticky="we")
         
-        # [ ★ 7. 추가 ★ ] 경로 설정 UI (Grid row 6)
-        path_frame = ttk.LabelFrame(self.main_frame, text="경로 설정", padding="10")
+        # [ ★ 8. 수정 ★ ] 경로 설정 UI (Grid row 6)
+        path_frame = ttk.LabelFrame(self.main_frame, text="NegativeScreen 폴더 설정", padding="10", labelanchor="n")
         path_frame.grid(row=6, column=0, columnspan=4, padx=5, pady=10, sticky="we")
         
-        # EXE 경로
-        ttk.Label(path_frame, text="EXE 경로:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        exe_entry = ttk.Entry(path_frame, textvariable=self.exe_path_var, state="readonly", width=30)
-        exe_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
-        ttk.Button(path_frame, text="찾아보기", command=self.browse_exe_path).grid(row=0, column=2, padx=5, pady=5)
+        ttk.Label(path_frame, text="App 폴더:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        folder_entry = ttk.Entry(path_frame, textvariable=self.app_folder_path_var, state="readonly", width=30)
+        folder_entry.grid(row=0, column=1, padx=5, pady=5, sticky="we")
+        ttk.Button(path_frame, text="폴더 찾기", command=self.browse_app_folder).grid(row=0, column=2, padx=5, pady=5)
         
-        # CONF 경로
-        ttk.Label(path_frame, text="CONF 경로:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        conf_entry = ttk.Entry(path_frame, textvariable=self.conf_path_var, state="readonly", width=30)
-        conf_entry.grid(row=1, column=1, padx=5, pady=5, sticky="we")
-        ttk.Button(path_frame, text="찾아보기", command=self.browse_conf_path).grid(row=1, column=2, padx=5, pady=5)
-        
-        # 경로 프레임의 2번째 열(column=1)이 남는 공간을 다 차지하도록 설정
-        path_frame.columnconfigure(1, weight=1)
+        path_frame.columnconfigure(1, weight=1) # Entry가 가로로 늘어나도록 설정
+
+        # [ ★ 9. 추가 ★ ] 재시작 버튼 (Grid row 7)
+        self.restart_button = ttk.Button(self.main_frame, text="NegativeScreen 재시작", command=self.restart_negativescreen)
+        self.restart_button.grid(row=7, column=0, columnspan=4, padx=5, pady=5, sticky="we")
 
     
-    # --- (pick_color1, pick_color2, update_preview... 로직은 변경 없음) ---
+    # --- (pick_color1 ~ _update_preset_ui_slot 함수들은 변경 없음) ---
     def pick_color1(self):
         current_hex = self.color1_hex_var.get()
         color = colorchooser.askcolor(initialcolor=current_hex)
@@ -185,10 +190,20 @@ class App(tk.Tk):
         b_label.config(text=b_text)
         
     def apply_changes(self):
-        # (이 함수는 변경 사항 없음)
+        # [ ★ 10. 수정 ★ ] 폴더 경로가 비었는지 먼저 확인
+        folder_path = self.app_folder_path_var.get()
+        if not folder_path or not Path(folder_path).exists():
+            messagebox.showwarning("폴더 필요", 
+                                 "NegativeScreen 폴더가 설정되지 않았습니다.\n"
+                                 "'폴더 찾기' 버튼을 눌러 설정해주세요.")
+            # 새 폴더 찾기 함수를 바로 호출
+            self.browse_app_folder()
+            return # 적용 작업 중단
+
+        # (이하 기존 로직)
         hotkey = self.hotkey_entry.get().strip()
-        hex1 = self.color1_hex_var.get()
-        hex2 = self.color2_hex_var.get()
+        hex1 = self.color1_hex_var.get().strip()
+        hex2 = self.color2_hex_var.get().strip()
         brightness = self.brightness_var.get()
         
         if not hotkey:
@@ -204,45 +219,99 @@ class App(tk.Tk):
                 messagebox.showerror("계산 오류", "매트릭스 계산에 실패했습니다.")
                 return
             
-            # self.handler는 이미 올바른 경로를 알고 있음
+            # self.handler는 __init__ 또는 browse_app_folder에서
+            # 이미 올바른 경로로 업데이트 되었음.
             self.handler.update_matrix(hotkey, new_matrix)
 
         except Exception as e:
             messagebox.showerror("실행 오류", f"적용 중 오류가 발생했습니다:\n{e}")
 
-    # [ ★ 8. 추가 ★ ] 경로 탐색 및 저장용 함수들
-    def browse_exe_path(self):
-        """EXE 파일 탐색기 열기"""
-        filepath = filedialog.askopenfilename(
-            title="NegativeScreen 실행 파일 선택",
-            filetypes=[("Executable", "*.exe"), ("All Files", "*.*")]
+    # [ ★ 11. 수정 ★ ] 
+    # browse_exe_path, browse_conf_path, _save_paths 함수를 
+    # 아래의 단일 함수로 교체
+    
+    def browse_app_folder(self):
+        """NegativeScreen 폴더 탐색기 열기"""
+        folder_path = filedialog.askdirectory(
+            title="NegativeScreen 폴더 선택 (exe와 conf가 함께 있는 곳)"
         )
-        if filepath: # 사용자가 '열기'를 누른 경우
-            self.exe_path_var.set(filepath)
-            self._save_paths()
+        if not folder_path: # 사용자가 '취소'를 누른 경우
+            return
 
-    def browse_conf_path(self):
-        """CONF 파일 탐색기 열기"""
-        filepath = filedialog.askopenfilename(
-            title="negativescreen.conf 파일 선택",
-            filetypes=[("Config files", "*.conf"), ("All Files", "*.*")]
-        )
-        if filepath: # 사용자가 '열기'를 누른 경우
-            self.conf_path_var.set(filepath)
-            self._save_paths()
-            
-            # [ ★ 중요 ★ ]
-            # ConfigFileHandler 인스턴스에 새 경로를 실시간으로 업데이트
-            self.handler.config_path = Path(filepath)
+        # --- 선택한 폴더 검증 ---
+        folder_path_obj = Path(folder_path)
+        exe_path = folder_path_obj / "negativescreen.exe"
+        conf_path = folder_path_obj / "negativescreen.conf"
 
-    def _save_paths(self):
-        """현재 UI의 경로 변수들을 config.json에 저장"""
-        self.config_manager.save_paths(
-            exe_path=self.exe_path_var.get(),
-            conf_path=self.conf_path_var.get()
-        )
-        print("경로가 저장되었습니다.")
+        if not exe_path.exists() or not conf_path.exists():
+            messagebox.showerror("파일 없음", 
+                                 f"선택한 폴더에 'negativescreen.exe'와\n"
+                                 f"'negativescreen.conf' 파일이 모두 존재해야 합니다.\n\n"
+                                 f"폴더: {folder_path}")
+            return
+        
+        # --- 검증 성공: 저장 및 업데이트 ---
+        # 1. UI 변수 업데이트
+        self.app_folder_path_var.set(folder_path)
+        
+        # 2. config.json에 영구 저장
+        self.config_manager.save_folder_path(folder_path)
+        
+        # 3. ConfigFileHandler 인스턴스에 실시간으로 새 경로 주입
+        self.handler.config_path = conf_path
+        
+        print(f"NegativeScreen 폴더가 '{folder_path}'로 설정되었습니다.")
 
+    # [ ★ 12. 추가 ★ ] 재시작 로직
+    def restart_negativescreen(self):
+        """NegativeScreen 프로세스를 종료하고 다시 시작합니다."""
+        
+        folder_path = self.app_folder_path_var.get()
+        if not folder_path:
+            messagebox.showwarning("폴더 필요", 
+                                 "NegativeScreen 폴더가 설정되지 않았습니다.\n"
+                                 "'폴더 찾기' 버튼을 눌러 설정해주세요.")
+            self.browse_app_folder()
+            return
+
+        exe_name = "negativescreen.exe"
+        exe_full_path = Path(folder_path) / exe_name
+
+        if not exe_full_path.exists():
+             messagebox.showerror("파일 없음", 
+                                 f"'negativescreen.exe' 파일을 찾을 수 없습니다.\n"
+                                 f"경로: {exe_full_path}")
+             return
+
+        print(f"Trying to restart {exe_name}...")
+
+        # 1. 종료 (taskkill)
+        try:
+            # shell=True: 윈도우 기본 명령어(taskkill) 실행
+            # DEVNULL: 콘솔 창에 '성공' 메시지 등이 뜨지 않도록 함
+            kill_command = f"taskkill /F /IM {exe_name}"
+            subprocess.run(kill_command, check=True, shell=True, 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"Killed process: {exe_name}")
+        except subprocess.CalledProcessError as e:
+            # 프로세스가 이미 꺼져있으면 오류가 발생함. 정상적인 상황임.
+            print(f"Process '{exe_name}' not found (or error): {e}. Proceeding to start.")
+        except Exception as e:
+            messagebox.showerror("종료 오류", f"프로세스 종료 중 오류 발생: {e}")
+            return
+
+        # 2. 잠시 대기 (프로세스가 완전히 종료될 시간)
+        time.sleep(0.5) # 0.5초
+
+        # 3. 시작 (os.startfile)
+        try:
+            os.startfile(exe_full_path)
+            print(f"Started process from: {exe_full_path}")
+        except Exception as e:
+            messagebox.showerror("시작 오류", 
+                                 f"NegativeScreen을 시작하는 데 실패했습니다.\n"
+                                 f"경로: {exe_full_path}\n"
+                                 f"오류: {e}")
 
 # --- 3. 프로그램 실행 ---
 if __name__ == "__main__":

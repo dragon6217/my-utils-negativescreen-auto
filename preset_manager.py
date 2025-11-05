@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from constants import PRESET_COUNT
+
 class PresetManager:
     """
     presets.json 파일을 관리하여 프리셋을 로드하고 저장합니다.
@@ -15,7 +17,7 @@ class PresetManager:
             # 기본 5개 빈 슬롯
             print("presets.json 파일이 없어 새로 생성합니다.")
             default_presets = [
-                {"color1": None, "color2": None, "brightness": None} for _ in range(5)
+                {"color1": None, "color2": None, "brightness": None} for _ in range(PRESET_COUNT)
             ]
             self.presets = default_presets
             self._save_to_file()
@@ -26,19 +28,19 @@ class PresetManager:
                 presets = json.load(f)
                 
                 # 데이터 무결성 검사 (항상 5개 슬롯 유지)
-                if len(presets) < 5:
+                if len(presets) < PRESET_COUNT:
                     # 5개보다 적으면 빈 슬롯 추가
-                    presets.extend([{"color1": None, "color2": None, "brightness": None}] * (5 - len(presets)))
-                elif len(presets) > 5:
+                    presets.extend([{"color1": None, "color2": None, "brightness": None}] * (PRESET_COUNT - len(presets)))
+                elif len(presets) > PRESET_COUNT:
                     # 5개보다 많으면 자름
-                    presets = presets[:5]
+                    presets = presets[:PRESET_COUNT]
                 
                 return presets
         except json.JSONDecodeError:
             print("presets.json 파일이 손상되어 기본값으로 덮어씁니다.")
             # 파일이 깨졌을 경우
             default_presets = [
-                {"color1": None, "color2": None, "brightness": None} for _ in range(5)
+                {"color1": None, "color2": None, "brightness": None} for _ in range(PRESET_COUNT)
             ]
             self.presets = default_presets
             self._save_to_file()
