@@ -105,13 +105,13 @@ class App(tk.Tk):
             b_label = ttk.Label(preset_grid_frame, text=b_text, anchor="center", width=PRESET_COLUMN_WIDTH)
             b_label.grid(row=2, column=i, padx=5, pady=2, sticky="ew")
             
-            # Row 3: 'Out' 버튼
-            out_button = ttk.Button(preset_grid_frame, text="Out", width=PRESET_COLUMN_WIDTH, command=lambda index=i: self.load_preset(index))
-            out_button.grid(row=3, column=i, padx=5, pady=2, sticky="ew")
-            
-            # Row 4: 'In' 버튼
+            # Row 3: 'In' 버튼 (먼저 나오도록)
             in_button = ttk.Button(preset_grid_frame, text="In", width=PRESET_COLUMN_WIDTH, command=lambda index=i: self.save_preset(index))
-            in_button.grid(row=4, column=i, padx=5, pady=2, sticky="ew")
+            in_button.grid(row=3, column=i, padx=5, pady=2, sticky="ew")
+            
+            # Row 4: 'Out' 버튼 (아래로)
+            out_button = ttk.Button(preset_grid_frame, text="Out", width=PRESET_COLUMN_WIDTH, command=lambda index=i: self.load_preset(index))
+            out_button.grid(row=4, column=i, padx=5, pady=2, sticky="ew")
 
             self.preset_ui_elements.append((c1_preview, c2_preview, b_label))
 
