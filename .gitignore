@@ -8,3 +8,6 @@ build/
 
 # 사용자 데이터 파일 (지난번에 추가함)
 *.json
+
+# Python cache
+__pycache__/
