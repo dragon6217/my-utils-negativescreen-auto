@@ -6,7 +6,7 @@ from constants import PRESET_COUNT # 8개로 고정된 값을 가져옴
 class PresetManager:
     """
     presets.json 파일을 관리하여 프리셋을 로드하고 저장합니다.
-    파일 경로는 C:\Users\[사용자명]\AppData\Roaming\NegativeScreenHelper 입니다.
+    파일 경로는 C:\\Users\\[사용자명]\\AppData\\Roaming\\NegativeScreenHelper 입니다.
     """
     def __init__(self, preset_file="presets.json"):
         

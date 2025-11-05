@@ -5,7 +5,7 @@ import os # AppData 경로를 찾기 위해 import
 class ConfigManager:
     """
     config.json 파일을 관리하여 앱 설정을 (폴더 경로) 저장합니다.
-    파일 경로는 C:\Users\[사용자명]\AppData\Roaming\NegativeScreenHelper 입니다.
+    파일 경로는 C:\\Users\\[사용자명]\\AppData\\Roaming\\NegativeScreenHelper 입니다.
     """
     def __init__(self, config_file="config.json"):
         
