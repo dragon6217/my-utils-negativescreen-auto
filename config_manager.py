@@ -1,0 +1,55 @@
+import json
+from pathlib import Path
+
+class ConfigManager:
+    """
+    config.json 파일을 관리하여 앱 설정을 (경로 등) 저장합니다.
+    """
+    def __init__(self, config_file="config.json"):
+        self.config_path = Path(config_file)
+        self.config = self.load_config()
+
+    def load_config(self):
+        """JSON 파일에서 설정을 로드합니다. 파일이 없으면 기본값을 생성합니다."""
+        default_config = {
+            "exe_path": "",
+            "conf_path": ""
+        }
+        
+        if not self.config_path.exists():
+            print("config.json 파일이 없어 새로 생성합니다.")
+            self.config = default_config
+            self._save_to_file()
+            return default_config
+        
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                # 누락된 키가 있으면 기본값으로 채움
+                config.setdefault("exe_path", "")
+                config.setdefault("conf_path", "")
+                return config
+        except json.JSONDecodeError:
+            print("config.json 파일이 손상되어 기본값으로 덮어씁니다.")
+            self.config = default_config
+            self._save_to_file()
+            return default_config
+
+    def _save_to_file(self):
+        """현재 설정을 JSON 파일에 저장합니다."""
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2)
+        except Exception as e:
+            print(f"config.json 저장 중 오류 발생: {e}")
+
+    def get_paths(self):
+        """저장된 경로 딕셔너리를 반환합니다."""
+        return self.config
+
+    def save_paths(self, exe_path, conf_path):
+        """새 경로를 저장하고 파일에 반영합니다."""
+        self.config["exe_path"] = exe_path
+        self.config["conf_path"] = conf_path
+        self._save_to_file()
+        print("경로가 config.json에 저장되었습니다.")
