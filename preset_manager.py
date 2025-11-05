@@ -1,21 +1,28 @@
 import json
 from pathlib import Path
-
-from constants import PRESET_COUNT
+import os # AppData 경로를 찾기 위해 import
+from constants import PRESET_COUNT # 8개로 고정된 값을 가져옴
 
 class PresetManager:
     """
     presets.json 파일을 관리하여 프리셋을 로드하고 저장합니다.
+    파일 경로는 C:\Users\[사용자명]\AppData\Roaming\NegativeScreenHelper 입니다.
     """
     def __init__(self, preset_file="presets.json"):
-        self.preset_path = Path(preset_file)
+        
+        appdata_dir = Path(os.getenv('APPDATA')) / "NegativeScreenHelper"
+        
+        appdata_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.preset_path = appdata_dir / preset_file
+
         self.presets = self.load_presets()
 
     def load_presets(self):
-        """JSON 파일에서 프리셋을 로드합니다. 파일이 없으면 5개의 빈 슬롯을 생성합니다."""
+        """JSON 파일에서 프리셋을 로드합니다. 파일이 없으면 N개의 빈 슬롯을 생성합니다."""
         if not self.preset_path.exists():
-            # 기본 5개 빈 슬롯
-            print("presets.json 파일이 없어 새로 생성합니다.")
+            print(f"presets.json 파일이 없어 새로 생성: {self.preset_path}")
+            # PRESET_COUNT (8개) 만큼 빈 슬롯 생성
             default_presets = [
                 {"color1": None, "color2": None, "brightness": None} for _ in range(PRESET_COUNT)
             ]
@@ -27,18 +34,15 @@ class PresetManager:
             with open(self.preset_path, 'r', encoding='utf-8') as f:
                 presets = json.load(f)
                 
-                # 데이터 무결성 검사 (항상 5개 슬롯 유지)
+                # (하위 호환성 로직) - PRESET_COUNT(8)에 맞춰 자동 조절
                 if len(presets) < PRESET_COUNT:
-                    # 5개보다 적으면 빈 슬롯 추가
                     presets.extend([{"color1": None, "color2": None, "brightness": None}] * (PRESET_COUNT - len(presets)))
                 elif len(presets) > PRESET_COUNT:
-                    # 5개보다 많으면 자름
                     presets = presets[:PRESET_COUNT]
                 
                 return presets
         except json.JSONDecodeError:
-            print("presets.json 파일이 손상되어 기본값으로 덮어씁니다.")
-            # 파일이 깨졌을 경우
+            print(f"presets.json 파일이 손상되어 기본값으로 덮어씁니다: {self.preset_path}")
             default_presets = [
                 {"color1": None, "color2": None, "brightness": None} for _ in range(PRESET_COUNT)
             ]
@@ -47,7 +51,7 @@ class PresetManager:
             return default_presets
 
     def _save_to_file(self):
-        """현재 프리셋 데이터를 JSON 파일에 저장합니다. (사람이 읽기 쉽게 indent=2)"""
+        """현재 프리셋 데이터를 JSON 파일에 저장합니다."""
         try:
             with open(self.preset_path, 'w', encoding='utf-8') as f:
                 json.dump(self.presets, f, indent=2)
